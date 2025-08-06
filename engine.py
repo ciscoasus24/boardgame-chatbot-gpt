@@ -1,6 +1,7 @@
 import openai
 import os
 from dotenv import load_dotenv
+from typing import List, Dict
 
 print("hello")
 load_dotenv()
@@ -29,16 +30,33 @@ def get_game_rule(game_name: str) -> str:
     except Exception as e:
         return f"룰을 가져오는 중 오류가 발생했습니다: {e}"
 
-def get_game_rule_detailed(game_name: str, text: str) -> str:
+def get_game_rule_detailed(game_name: str, messages: List[Dict[str, str]]) -> str:
     """
     주어진 보드게임에 대한 사용자의 질문에 대해 GPT에게 답변을 요청하고 반환한다.
     """
+    if messages[-1].role != "user":
+        return "마지막 메시지는 사용자 질문이어야 합니다."
+    
+    text = messages[-1].content
+    if not text.strip():
+        return "질문이 비어 있습니다."
+    
+    context = ""
+
+    for message in messages[:-1]:
+        context += f"\n{message.content}"
+
     prompt = (
-        f"보드게임 '{game_name}'에 대해 다음 질문에 답변해줘: {text}. "
-        "너무 어렵게 설명하지 말고, 핵심적인 행동 위주로 말해줘."
-        "실제로 있는 보드게임인지 3번 더 확인해."
-        "보드게임에 대한 질문이 아닌 경우에는 아무 답변도 하지마."
+        f"보드게임 '{game_name}'에 대해 질문에 답변해줘.\n"
+        "너무 어렵게 설명하지 말고, 핵심적인 행동 위주로 말해줘.\n"
+        "실제로 있는 보드게임인지 3번 더 확인해.\n"
+        "보드게임에 대한 질문이 아닌 경우에는 아무 답변도 하지마.\n\n"
     )
+
+    if context:
+        prompt += f"[이전 대화 내용]\n{context}\n\n"
+
+    prompt += f"[사용자 질문]\n{text}"
 
     try:
         response = client.chat.completions.create(
