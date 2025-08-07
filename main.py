@@ -9,6 +9,9 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
+# 최대 메시지 수
+MAX_MESSAGES = 10
+
 # 각 요청에서 DB 세션을 생성/닫는 종속성
 def get_db():
     db = SessionLocal()
@@ -37,6 +40,12 @@ def create_message(game_name: str, role: str, content: str, db: Session = Depend
     if role not in ["user", "assistant"]:
         raise HTTPException(status_code=400, detail="role must be 'user' or 'assistant'")
     message = crud.add_message(db, game_name, role, content)
+
+    messages_cnt = len(crud.get_messages_by_game(db, game_name))
+
+    if (messages_cnt > MAX_MESSAGES):
+        crud.delete_oldest_message(db, game_name)
+    
     return {
         "id": message.id,
         "role": message.role,
@@ -50,7 +59,9 @@ def ask_and_reply(game_name: str, question: str, db: Session = Depends(get_db)):
     crud.add_message(db, game_name, "user", question)
 
     messages = crud.get_messages_by_game(db, game_name)
-    print(messages[-1])
+
+    if (len(messages) > MAX_MESSAGES):
+        crud.delete_oldest_message(db, game_name)
 
     # GPT에게 응답 요청
     answer = gpt_engine.get_game_rule_detailed(game_name, messages)
